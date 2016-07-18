@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 const char *sk1 = "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4";
 const char *pk1 = "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c";
@@ -30,6 +31,8 @@ const char *expectedIntermediate1000 = "b54931505707f5468ca13d1aaca2fbd9932a0fd5
 const char *expectedIntermediate2000 = "76bdbccf899c51d6552deff9dc68fb2b08c007c0dfdafd1c492af02f8e14b142";
 const char *expectedIntermediate3000 = "7f5cbd62d914b80d516efb6454a2ea218112c3bed26cc7f9eaa281a7578ecf63";
 
+static int bit32 = 1;
+
 void
 hexString2ByteArray(unsigned char *item, const char *str)
 {
@@ -39,12 +42,6 @@ hexString2ByteArray(unsigned char *item, const char *str)
 
     if ((tmp % 2) != 0) {
         return;
-    }
-
-    /* skip leading 00's unless the hex string is "00" */
-    while ((tmp > 2) && (str[0] == '0') && (str[1] == '0')) {
-        str += 2;
-        tmp -= 2;
     }
 
     while (str[i]) {
@@ -113,8 +110,11 @@ testIt(const char *name, const char *scalar, const char *point, const char *expe
     for (int i = 0; i < iterations; ++i) {
         printf("\r %d", i);
         fflush(stdout);
-        curve25519_32_scalarmult(result, x, p);
-        // curve25519_64_scalarmult(result, x, p);
+        if (bit32){
+            curve25519_32_scalarmult(result, x, p);
+        } else {
+            curve25519_64_scalarmult(result, x, p);
+        }
         // if (i != 0 && i%1000 == 0) {
         //     printf("\n%d - ", i);
         //     printEncodedPoint("result", result);
@@ -132,12 +132,28 @@ testIt(const char *name, const char *scalar, const char *point, const char *expe
 }
 
 int
-main()
+main(int argc, char *argv[])
 {
-    // testIt("sk1", sk1, pk1, expectedResult1, 1);
+    struct timeval t1, t2;
+    double elapsedTime;
+
+    if (argc > 1 && strncmp(argv[1], "64", 2) == 0) {
+        bit32 = 0;
+    }
+
+    testIt("sk1", sk1, pk1, expectedResult1, 1);
     testIt("sk2", sk2, pk2, expectedResult2, 1);
-    // testIt("iteration 1", skIt, pkIt, expectedResultIt1, 1);
-    // testIt("iteration 1000", skIt, pkIt, expectedResultIt1000, 1000);
+
+    testIt("iteration 1", skIt, pkIt, expectedResultIt1, 1);
+
+    gettimeofday(&t1, NULL);
+    testIt("iteration 1000", skIt, pkIt, expectedResultIt1000, 1000);
+    gettimeofday(&t2, NULL);
+    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;
+    elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;
+    elapsedTime /= 1000;
+    printf("Speed: %f ms/op\n", elapsedTime);
+
     // testIt("iteration 1000000", skIt, pkIt, expectedResultIt1000000, 1000000);
 
     return 0;
