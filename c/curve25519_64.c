@@ -9,7 +9,6 @@
 
 typedef uint8_t u8;
 typedef uint64_t felem;
-typedef unsigned __int128 uint128_t;
 
 /* Sum two numbers: output += in */
 static void
@@ -68,24 +67,28 @@ static void
 fscalar_product(felem *output, const felem *in,
                 const felem scalar)
 {
-    uint128_t a;
+    uint128_t tmp, tmp2;
 
-    a = ((uint128_t)in[0]) * scalar;
-    output[0] = a & 0x7ffffffffffff;
+    tmp = mul6464(in[0], scalar);
+    output[0] = mask(tmp);
 
-    a = ((uint128_t)in[1]) * scalar + (a >> 51);
-    output[1] = a & 0x7ffffffffffff;
+    tmp2 = mul6464(in[1], scalar);
+    tmp = add128(tmp2, rshift128(tmp, 51));
+    output[1] = mask(tmp);
 
-    a = ((uint128_t)in[2]) * scalar + (a >> 51);
-    output[2] = a & 0x7ffffffffffff;
+    tmp2 = mul6464(in[2], scalar);
+    tmp = add128(tmp2, rshift128(tmp, 51));
+    output[2] = mask(tmp);
 
-    a = ((uint128_t)in[3]) * scalar + (a >> 51);
-    output[3] = a & 0x7ffffffffffff;
+    tmp2 = mul6464(in[3], scalar);
+    tmp = add128(tmp2, rshift128(tmp, 51));
+    output[3] = mask(tmp);
 
-    a = ((uint128_t)in[4]) * scalar + (a >> 51);
-    output[4] = a & 0x7ffffffffffff;
+    tmp2 = mul6464(in[4], scalar);
+    tmp = add128(tmp2, rshift128(tmp, 51));
+    output[4] = mask(tmp);
 
-    output[0] += (a >> 51) * 19;
+    output[0] += mask2(rshift128(tmp, 51)) * 19;
 }
 
 /* Multiply two numbers: output = in2 * in
@@ -96,90 +99,95 @@ fscalar_product(felem *output, const felem *in,
 static void
 fmul(felem *output, const felem *in2, const felem *in)
 {
-    uint128_t t[9];
+    uint128_t t0,t1,t2,t3,t4,t5,t6,t7,t8;
 
-    t[0] = ((uint128_t)in[0]) * in2[0];
-    t[1] = ((uint128_t)in[0]) * in2[1] + ((uint128_t)in[1]) * in2[0];
-    t[2] = ((uint128_t)in[0]) * in2[2] + ((uint128_t)in[2]) * in2[0] +
-           ((uint128_t)in[1]) * in2[1];
-    t[3] = ((uint128_t)in[0]) * in2[3] + ((uint128_t)in[3]) * in2[0] +
-           ((uint128_t)in[1]) * in2[2] + ((uint128_t)in[2]) * in2[1];
-    t[4] = ((uint128_t)in[0]) * in2[4] + ((uint128_t)in[4]) * in2[0] +
-           ((uint128_t)in[3]) * in2[1] + ((uint128_t)in[1]) * in2[3] +
-           ((uint128_t)in[2]) * in2[2];
-    t[5] = ((uint128_t)in[4]) * in2[1] + ((uint128_t)in[1]) * in2[4] +
-           ((uint128_t)in[2]) * in2[3] + ((uint128_t)in[3]) * in2[2];
-    t[6] = ((uint128_t)in[4]) * in2[2] + ((uint128_t)in[2]) * in2[4] +
-           ((uint128_t)in[3]) * in2[3];
-    t[7] = ((uint128_t)in[3]) * in2[4] + ((uint128_t)in[4]) * in2[3];
-    t[8] = ((uint128_t)in[4]) * in2[4];
+    t0 = mul6464(in[0], in2[0]);
+    t1 = add128(mul6464(in[1], in2[0]), mul6464(in[0], in2[1]));
+    t2 = add128(add128(mul6464(in[0], in2[2]),
+                       mul6464(in[2], in2[0])),
+                mul6464(in[1], in2[1]));
+    t3 = add128(add128(add128(mul6464(in[0], in2[3]),
+                              mul6464(in[3], in2[0])),
+                       mul6464(in[1], in2[2])),
+                mul6464(in[2], in2[1]));
+    t4 = add128(add128(add128(add128(mul6464(in[0], in2[4]),
+                                     mul6464(in[4], in2[0])),
+                              mul6464(in[3], in2[1])),
+                       mul6464(in[1], in2[3])),
+                mul6464(in[2], in2[2]));
+    t5 = add128(add128(add128(mul6464(in[4], in2[1]),
+                              mul6464(in[1], in2[4])),
+                       mul6464(in[2], in2[3])),
+                mul6464(in[3], in2[2]));
+    t6 = add128(add128(mul6464(in[4], in2[2]),
+                       mul6464(in[2], in2[4])),
+                mul6464(in[3], in2[3]));
+    t7 = add128(mul6464(in[3], in2[4]), mul6464(in[4], in2[3]));
+    t8 = mul6464(in[4], in2[4]);
 
-    t[0] += t[5] * 19;
-    t[1] += t[6] * 19;
-    t[2] += t[7] * 19;
-    t[3] += t[8] * 19;
+    t0 = add128(t0, mul12819(t5));
+    t1 = add128(t1, mul12819(t6));
+    t2 = add128(t2, mul12819(t7));
+    t3 = add128(t3, mul12819(t8));
 
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
-    t[3] += t[2] >> 51;
-    t[2] &= 0x7ffffffffffff;
-    t[4] += t[3] >> 51;
-    t[3] &= 0x7ffffffffffff;
-    t[0] += 19 * (t[4] >> 51);
-    t[4] &= 0x7ffffffffffff;
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
+    t1 = add128(t1, rshift128(t0, 51));
+    t0 = mask3(t0);
+    t2 = add128(t2, rshift128(t1, 51));
+    t1 = mask3(t1);
+    t3 = add128(t3, rshift128(t2, 51));
+    t4 = add128(t4, rshift128(t3, 51));
+    t0 = add128(t0, mul12819(rshift128(t4, 51)));
+    t1 = add128(t1, rshift128(t0, 51));
+    t2 = mask3(t2);
+    t2 = add128(t2, rshift128(t1, 51));
 
-    output[0] = t[0];
-    output[1] = t[1];
-    output[2] = t[2];
-    output[3] = t[3];
-    output[4] = t[4];
+    output[0] = mask(t0);
+    output[1] = mask(t1);
+    output[2] = mask2(t2);
+    output[3] = mask(t3);
+    output[4] = mask(t4);
 }
 
 static void
 fsquare(felem *output, const felem *in)
 {
-    uint128_t t[9];
+    uint128_t t0,t1,t2,t3,t4,t5,t6,t7,t8;
 
-    t[0] = ((uint128_t)in[0]) * in[0];
-    t[1] = ((uint128_t)in[0]) * in[1] * 2;
-    t[2] = ((uint128_t)in[0]) * in[2] * 2 + ((uint128_t)in[1]) * in[1];
-    t[3] = ((uint128_t)in[0]) * in[3] * 2 + ((uint128_t)in[1]) * in[2] * 2;
-    t[4] = ((uint128_t)in[0]) * in[4] * 2 + ((uint128_t)in[3]) * in[1] * 2 +
-           ((uint128_t)in[2]) * in[2];
-    t[5] = ((uint128_t)in[4]) * in[1] * 2 + ((uint128_t)in[2]) * in[3] * 2;
-    t[6] = ((uint128_t)in[4]) * in[2] * 2 + ((uint128_t)in[3]) * in[3];
-    t[7] = ((uint128_t)in[3]) * in[4] * 2;
-    t[8] = ((uint128_t)in[4]) * in[4];
+    t0 = mul6464(in[0], in[0]);
+    t1 = lshift128(mul6464(in[0], in[1]), 1);
+    t2 = add128(lshift128(mul6464(in[0], in[2]), 1),
+                mul6464(in[1], in[1]));
+    t3 = add128(lshift128(mul6464(in[0], in[3]), 1),
+                lshift128(mul6464(in[1], in[2]), 1));
+    t4 = add128(add128(lshift128(mul6464(in[0], in[4]), 1),
+                       lshift128(mul6464(in[3], in[1]), 1)),
+                mul6464(in[2], in[2]));
+    t5 = add128(lshift128(mul6464(in[4], in[1]), 1),
+                lshift128(mul6464(in[2], in[3]), 1));
+    t6 = add128(lshift128(mul6464(in[4], in[2]), 1),
+                mul6464(in[3], in[3]));
+    t7 = lshift128(mul6464(in[3], in[4]), 1);
+    t8 = mul6464(in[4], in[4]);
 
-    t[0] += t[5] * 19;
-    t[1] += t[6] * 19;
-    t[2] += t[7] * 19;
-    t[3] += t[8] * 19;
+    t0 = add128(t0, mul12819(t5));
+    t1 = add128(t1, mul12819(t6));
+    t2 = add128(t2, mul12819(t7));
+    t3 = add128(t3, mul12819(t8));
 
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
-    t[3] += t[2] >> 51;
-    t[2] &= 0x7ffffffffffff;
-    t[4] += t[3] >> 51;
-    t[3] &= 0x7ffffffffffff;
-    t[0] += 19 * (t[4] >> 51);
-    t[4] &= 0x7ffffffffffff;
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
+    t1 = add128(t1, rshift128(t0, 51));
+    t0 = mask3(t0);
+    t2 = add128(t2, rshift128(t1, 51));
+    t1 = mask3(t1);
+    t3 = add128(t3, rshift128(t2, 51));
+    t4 = add128(t4, rshift128(t3, 51));
+    t0 = add128(t0, mul12819(rshift128(t4, 51)));
+    t1 = add128(t1, rshift128(t0, 51));
 
-    output[0] = t[0];
-    output[1] = t[1];
-    output[2] = t[2];
-    output[3] = t[3];
-    output[4] = t[4];
+    output[0] = mask(t0);
+    output[1] = mask2(t1);
+    output[2] = mask(t2);
+    output[3] = mask(t3);
+    output[4] = mask(t4);
 }
 
 /* Take a little-endian, 32-byte number and expand it into polynomial form */
@@ -199,76 +207,76 @@ fexpand(felem *output, const u8 *in)
 static void
 fcontract(u8 *output, const felem *input)
 {
-    uint128_t t[5];
+    uint128_t t0 = init128x(input[0]);
+    uint128_t t1 = init128x(input[1]);
+    uint128_t t2 = init128x(input[2]);
+    uint128_t t3 = init128x(input[3]);
+    uint128_t t4 = init128x(input[4]);
+    uint128_t tmp = init128x(19);
 
-    t[0] = input[0];
-    t[1] = input[1];
-    t[2] = input[2];
-    t[3] = input[3];
-    t[4] = input[4];
+    t1 = add128(t1, rshift128(t0, 51));
+    t0 = mask3(t0);
+    t2 = add128(t2, rshift128(t1, 51));
+    t1 = mask3(t1);
+    t3 = add128(t3, rshift128(t2, 51));
+    t2 = mask3(t2);
+    t4 = add128(t4, rshift128(t3, 51));
+    t3 = mask3(t3);
+    t0 = add128(t0, mul12819(rshift128(t4, 51)));
+    t4 = mask3(t4);
 
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
-    t[3] += t[2] >> 51;
-    t[2] &= 0x7ffffffffffff;
-    t[4] += t[3] >> 51;
-    t[3] &= 0x7ffffffffffff;
-    t[0] += 19 * (t[4] >> 51);
-    t[4] &= 0x7ffffffffffff;
-
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
-    t[3] += t[2] >> 51;
-    t[2] &= 0x7ffffffffffff;
-    t[4] += t[3] >> 51;
-    t[3] &= 0x7ffffffffffff;
-    t[0] += 19 * (t[4] >> 51);
-    t[4] &= 0x7ffffffffffff;
+    t1 = add128(t1, rshift128(t0, 51));
+    t0 = mask3(t0);
+    t2 = add128(t2, rshift128(t1, 51));
+    t1 = mask3(t1);
+    t3 = add128(t3, rshift128(t2, 51));
+    t2 = mask3(t2);
+    t4 = add128(t4, rshift128(t3, 51));
+    t3 = mask3(t3);
+    t0 = add128(t0, mul12819(rshift128(t4, 51)));
+    t4 = mask3(t4);
 
     /* now t is between 0 and 2^255-1, properly carried. */
     /* case 1: between 0 and 2^255-20. case 2: between 2^255-19 and 2^255-1. */
 
-    t[0] += 19;
+    t0 = add128(t0, tmp);
 
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
-    t[3] += t[2] >> 51;
-    t[2] &= 0x7ffffffffffff;
-    t[4] += t[3] >> 51;
-    t[3] &= 0x7ffffffffffff;
-    t[0] += 19 * (t[4] >> 51);
-    t[4] &= 0x7ffffffffffff;
+    t1 = add128(t1, rshift128(t0, 51));
+    t0 = mask3(t0);
+    t2 = add128(t2, rshift128(t1, 51));
+    t1 = mask3(t1);
+    t3 = add128(t3, rshift128(t2, 51));
+    t2 = mask3(t2);
+    t4 = add128(t4, rshift128(t3, 51));
+    t3 = mask3(t3);
+    t0 = add128(t0, mul12819(rshift128(t4, 51)));
+    t4 = mask3(t4);
 
     /* now between 19 and 2^255-1 in both cases, and offset by 19. */
 
-    t[0] += 0x8000000000000 - 19;
-    t[1] += 0x8000000000000 - 1;
-    t[2] += 0x8000000000000 - 1;
-    t[3] += 0x8000000000000 - 1;
-    t[4] += 0x8000000000000 - 1;
+    t0 = add128(t0, init128x(0x8000000000000 - 19));
+    tmp = init128x(0x8000000000000 - 1);
+    t1 = add128(t1, tmp);
+    t2 = add128(t2, tmp);
+    t3 = add128(t3, tmp);
+    t4 = add128(t4, tmp);
 
     /* now between 2^255 and 2^256-20, and offset by 2^255. */
 
-    t[1] += t[0] >> 51;
-    t[0] &= 0x7ffffffffffff;
-    t[2] += t[1] >> 51;
-    t[1] &= 0x7ffffffffffff;
-    t[3] += t[2] >> 51;
-    t[2] &= 0x7ffffffffffff;
-    t[4] += t[3] >> 51;
-    t[3] &= 0x7ffffffffffff;
-    t[4] &= 0x7ffffffffffff;
+    t1 = add128(t1, rshift128(t0, 51));
+    t0 = mask3(t0);
+    t2 = add128(t2, rshift128(t1, 51));
+    t1 = mask3(t1);
+    t3 = add128(t3, rshift128(t2, 51));
+    t2 = mask3(t2);
+    t4 = add128(t4, rshift128(t3, 51));
+    t3 = mask3(t3);
+    t4 = mask3(t4);
 
-    *((uint64_t *)(output)) = t[0] | (t[1] << 51);
-    *((uint64_t *)(output + 8)) = (t[1] >> 13) | (t[2] << 38);
-    *((uint64_t *)(output + 16)) = (t[2] >> 26) | (t[3] << 25);
-    *((uint64_t *)(output + 24)) = (t[3] >> 39) | (t[4] << 12);
+    *((uint64_t *)(output)) = mask2(t0) | mask2(t1) << 51;
+    *((uint64_t *)(output + 8)) = (mask2(t1) >> 13) | (mask2(t2) << 38);
+    *((uint64_t *)(output + 16)) = (mask2(t2) >> 26) | (mask2(t3) << 25);
+    *((uint64_t *)(output + 24)) = (mask2(t3) >> 39) | (mask2(t4) << 12);
 }
 
 /* Input: Q, Q', Q-Q'
@@ -475,8 +483,8 @@ crecip(felem *out, const felem *z)
 }
 
 int
-curve25519_64_scalarmult(uint8_t *mypublic, const uint8_t *secret,
-                         const uint8_t *basepoint)
+curve25519_scalarmult(uint8_t *mypublic, const uint8_t *secret,
+                      const uint8_t *basepoint)
 {
     felem bp[5], x[5], z[5], zmone[5];
     unsigned char e[32];

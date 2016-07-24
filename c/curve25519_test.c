@@ -1,10 +1,13 @@
 
-#include "curve25519.h"
+// #include "curve25519.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
+
+/* forward declaration */
+int curve25519_scalarmult(uint8_t *mypublic, const uint8_t *secret, const uint8_t *basepoint);
 
 const char *sk1 = "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4";
 const char *pk1 = "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c";
@@ -110,15 +113,7 @@ testIt(const char *name, const char *scalar, const char *point, const char *expe
     for (int i = 0; i < iterations; ++i) {
         printf("\r %d", i);
         fflush(stdout);
-        if (bit32){
-            curve25519_32_scalarmult(result, x, p);
-        } else {
-            curve25519_64_scalarmult(result, x, p);
-        }
-        // if (i != 0 && i%1000 == 0) {
-        //     printf("\n%d - ", i);
-        //     printEncodedPoint("result", result);
-        // }
+        curve25519_scalarmult(result, x, p);
         memcpy(p, x, 32);
         memcpy(x, result, 32);
     }
@@ -136,10 +131,6 @@ main(int argc, char *argv[])
 {
     struct timeval t1, t2;
     double elapsedTime;
-
-    if (argc > 1 && strncmp(argv[1], "64", 2) == 0) {
-        bit32 = 0;
-    }
 
     testIt("sk1", sk1, pk1, expectedResult1, 1);
     testIt("sk2", sk2, pk2, expectedResult2, 1);
